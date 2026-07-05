@@ -261,6 +261,52 @@
       background:#fffaf0;
     }
 
+
+    .cell-media{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      width:100%;
+      min-height:100%;
+    }
+
+    .cell-text{
+      outline:none;
+      min-height:24px;
+      width:100%;
+    }
+
+    .cell-img{
+      max-width:100%;
+      max-height:180px;
+      border-radius:10px;
+      border:1px solid var(--grid);
+      object-fit:contain;
+      background:#fffaf0;
+      display:block;
+    }
+
+    .img-tools{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      opacity:.18;
+      transition:.15s;
+      margin-top:4px;
+    }
+
+    .task:hover .img-tools{ opacity:1; }
+
+    .img-tools button{
+      padding:5px 7px;
+      border-radius:8px;
+      font-size:12px;
+    }
+
+    .hidden-file{
+      display:none;
+    }
+
     @media (max-width: 720px){
       .topbar{ align-items:flex-start; flex-direction:column; }
       .controls{ justify-content:flex-start; }
@@ -329,6 +375,12 @@
     if(!data.sizes) data.sizes = structuredClone(defaultData.sizes);
     if(!data.sizes.defaultColWidth) data.sizes.defaultColWidth = 280;
     if(!data.sizes.defaultRowHeight) data.sizes.defaultRowHeight = 58;
+
+    data.experiments.forEach(exp => {
+      if(!exp.images) exp.images = data.dates.map(() => "");
+      while(exp.images.length < data.dates.length) exp.images.push("");
+      while(exp.tasks.length < data.dates.length) exp.tasks.push("");
+    });
 
     const grid = document.getElementById("grid");
     const allWidth = document.getElementById("allWidth");
@@ -520,17 +572,84 @@
 
         data.experiments.forEach((exp, col) => {
           while(exp.tasks.length < data.dates.length) exp.tasks.push("");
+          while(!exp.images) exp.images = [];
+          while(exp.images.length < data.dates.length) exp.images.push("");
+
           const c = document.createElement("div");
           c.className = "cell task";
-          c.contentEditable = "true";
-          c.textContent = exp.tasks[row] || "";
           c.dataset.row = row;
           c.dataset.col = col;
           c.style.height = px(getRowHeight(row));
-          c.addEventListener("input", () => {
-            data.experiments[col].tasks[row] = c.textContent;
+
+          const media = document.createElement("div");
+          media.className = "cell-media";
+
+          const text = document.createElement("div");
+          text.className = "cell-text";
+          text.contentEditable = "true";
+          text.textContent = exp.tasks[row] || "";
+          text.addEventListener("input", () => {
+            data.experiments[col].tasks[row] = text.textContent;
             save();
           });
+          media.appendChild(text);
+
+          if (exp.images[row]) {
+            const img = document.createElement("img");
+            img.className = "cell-img";
+            img.src = exp.images[row];
+            img.alt = "Cell image";
+            media.appendChild(img);
+          }
+
+          const tools = document.createElement("div");
+          tools.className = "img-tools";
+
+          const addImgBtn = document.createElement("button");
+          addImgBtn.textContent = exp.images[row] ? "Change image" : "+ Image";
+          addImgBtn.type = "button";
+
+          const fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.accept = "image/*";
+          fileInput.className = "hidden-file";
+
+          addImgBtn.onclick = (e) => {
+            e.stopPropagation();
+            fileInput.click();
+          };
+
+          fileInput.onchange = () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+              exp.images[row] = reader.result;
+              save();
+              render();
+            };
+            reader.readAsDataURL(file);
+          };
+
+          tools.appendChild(addImgBtn);
+          tools.appendChild(fileInput);
+
+          if (exp.images[row]) {
+            const removeImgBtn = document.createElement("button");
+            removeImgBtn.textContent = "Remove image";
+            removeImgBtn.type = "button";
+            removeImgBtn.onclick = (e) => {
+              e.stopPropagation();
+              exp.images[row] = "";
+              save();
+              render();
+            };
+            tools.appendChild(removeImgBtn);
+          }
+
+          media.appendChild(tools);
+          c.appendChild(media);
           grid.appendChild(c);
         });
       });
@@ -549,7 +668,7 @@
     document.getElementById("addExp").onclick = () => {
       const title = prompt("Experiment name?", "New experiment");
       if(!title) return;
-      data.experiments.push({ title, tasks: data.dates.map(() => "") });
+      data.experiments.push({ title, tasks: data.dates.map(() => ""), images: data.dates.map(() => "") });
       data.sizes.colWidths.push(data.sizes.defaultColWidth || 280);
       save(); render();
     };
@@ -559,7 +678,7 @@
       const date = prompt("Date?", last);
       if(!date) return;
       data.dates.push(date);
-      data.experiments.forEach(e => e.tasks.push(""));
+      data.experiments.forEach(e => { e.tasks.push(""); if(!e.images) e.images = []; e.images.push(""); });
       data.sizes.rowHeights.push(data.sizes.defaultRowHeight || 58);
       save(); render();
     };
